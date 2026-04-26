@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>VS Code Editor — LabDesk</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #1e1e1e; overflow: hidden; }
+
+    #toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 36px; background: #2d2d2d; padding: 0 12px;
+      border-bottom: 1px solid #3c3c3c; gap: 10px;
+    }
+    #toolbar-left { display: flex; align-items: center; gap: 10px; }
+    #lang-select {
+      background: #3c3c3c; border: 1px solid #555; color: #ccc;
+      font-size: 12px; padding: 3px 8px; border-radius: 4px; cursor: pointer;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    #file-name {
+      color: #ccc; font-size: 12px; font-family: 'Segoe UI', sans-serif;
+      background: #3c3c3c; border: 1px solid #555; padding: 3px 8px;
+      border-radius: 4px; width: 160px;
+    }
+    #file-name:focus { outline: none; border-color: #0078d4; }
+
+    #toolbar-right { display: flex; gap: 8px; }
+    .tb-btn {
+      background: #0078d4; border: none; color: #fff;
+      font-size: 11px; padding: 3px 12px; border-radius: 4px; cursor: pointer;
+      font-family: 'Segoe UI', sans-serif; transition: background 0.2s;
+    }
+    .tb-btn:hover { background: #005a9e; }
+    .tb-btn.secondary { background: #3c3c3c; color: #ccc; }
+    .tb-btn.secondary:hover { background: #4a4a4a; }
+
+    #editor { width: 100%; height: calc(100vh - 36px); }
+
+    #output-panel {
+      display: none; position: absolute; bottom: 0; left: 0; right: 0;
+      height: 160px; background: #1a1a1a; border-top: 1px solid #3c3c3c;
+      font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 12px;
+    }
+    #output-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 12px; background: #2d2d2d; border-bottom: 1px solid #3c3c3c;
+    }
+    #output-header span { color: #aaa; font-size: 11px; font-family: 'Segoe UI', sans-serif; }
+    #close-output { background: none; border: none; color: #aaa; cursor: pointer; font-size: 14px; }
+    #output-content {
+      padding: 8px 12px; color: #d4d4d4; overflow-y: auto;
+      height: calc(100% - 28px); white-space: pre-wrap; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <div id="toolbar-left">
+      <span style="color:#569cd6;font-size:14px;font-weight:bold;">⚡</span>
+      <input type="text" id="file-name" value="main.py" placeholder="filename.ext" oninput="syncLangFromFile()"/>
+      <select id="lang-select" onchange="changeLang()">
+        <option value="python">Python</option>
+        <option value="c">C</option>
+        <option value="cpp">C++</option>
+        <option value="java">Java</option>
+        <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
+        <option value="html">HTML</option>
+        <option value="css">CSS</option>
+        <option value="json">JSON</option>
+        <option value="markdown">Markdown</option>
+        <option value="sql">SQL</option>
+        <option value="shell">Shell</option>
+        <option value="rust">Rust</option>
+        <option value="go">Go</option>
+      </select>
+    </div>
+    <div id="toolbar-right">
+      <button class="tb-btn secondary" onclick="clearEditor()">🗑 Clear</button>
+      <button class="tb-btn secondary" onclick="copyCode()">📋 Copy</button>
+      <button class="tb-btn" onclick="runCode()">▶ Run (JS only)</button>
+    </div>
+  </div>
+
+  <div id="editor"></div>
+
+  <div id="output-panel">
+    <div id="output-header">
+      <span>▶ Output</span>
+      <button id="close-output" onclick="closeOutput()">✕</button>
+    </div>
+    <div id="output-content" id="output-content"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+  <script>
+    let editor;
+    const STARTER = {
+      python:     '# Python\nprint("Hello, Engineer!")\n\nx = 10\ny = 20\nprint(f"Sum: {x + y}")\n',
+      c:          '#include <stdio.h>\n\nint main() {\n    printf("Hello, Engineer!\\n");\n    return 0;\n}\n',
+      cpp:        '#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello, Engineer!" << endl;\n    return 0;\n}\n',
+      java:       'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, Engineer!");\n    }\n}\n',
+      javascript: '// JavaScript\nconsole.log("Hello, Engineer!");\n\nconst add = (a, b) => a + b;\nconsole.log("Sum:", add(10, 20));\n',
+      typescript: '// TypeScript\nconst greet = (name: string): string => `Hello, ${name}!`;\nconsole.log(greet("Engineer"));\n',
+      html:       '<!DOCTYPE html>\n<html>\n<head><title>My Page</title></head>\n<body>\n  <h1>Hello, Engineer!</h1>\n</body>\n</html>\n',
+      css:        'body {\n  font-family: Inter, sans-serif;\n  background: #0a0b0f;\n  color: #e8eaf0;\n}\n\nh1 {\n  color: #6c63ff;\n}\n',
+      json:       '{\n  "name": "Engineering Lab",\n  "year": 2026,\n  "tools": ["VS Code", "Python", "GCC"]\n}\n',
+      markdown:   '# Engineering Notes\n\n## Topic\n\nWrite your notes here...\n\n- Point 1\n- Point 2\n\n```python\nprint("code block")\n```\n',
+      sql:        '-- SQL Query\nSELECT * FROM students\nWHERE branch = \'CSE\'\nORDER BY roll_no ASC;\n',
+      shell:      '#!/bin/bash\necho "Hello, Engineer!"\nls -la\n',
+      rust:       'fn main() {\n    println!("Hello, Engineer!");\n}\n',
+      go:         'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, Engineer!")\n}\n',
+    };
+
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editor'), {
+        value: STARTER['python'],
+        language: 'python',
+        theme: 'vs-dark',
+        fontSize: 14,
+        fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+        fontLigatures: true,
+        minimap: { enabled: true },
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        tabSize: 4,
+        wordWrap: 'off',
+        lineNumbers: 'on',
+        renderLineHighlight: 'all',
+        cursorBlinking: 'smooth',
+        smoothScrolling: true,
+        suggestOnTriggerCharacters: true,
+        quickSuggestions: true,
+        bracketPairColorization: { enabled: true },
+      });
+
+      // Restore saved content
+      const saved = localStorage.getItem('labdesk_monaco_code');
+      const savedLang = localStorage.getItem('labdesk_monaco_lang') || 'python';
+      if (saved) {
+        editor.setValue(saved);
+        setLang(savedLang);
+      }
+
+      editor.onDidChangeModelContent(() => {
+        localStorage.setItem('labdesk_monaco_code', editor.getValue());
+      });
+    });
+
+    function changeLang() {
+      const lang = document.getElementById('lang-select').value;
+      setLang(lang);
+      const extMap = { python:'py',c:'c',cpp:'cpp',java:'java',javascript:'js',typescript:'ts',html:'html',css:'css',json:'json',markdown:'md',sql:'sql',shell:'sh',rust:'rs',go:'go' };
+      document.getElementById('file-name').value = 'main.' + (extMap[lang] || lang);
+      if (!localStorage.getItem('labdesk_monaco_code')) editor.setValue(STARTER[lang] || '');
+      localStorage.setItem('labdesk_monaco_lang', lang);
+    }
+
+    function setLang(lang) {
+      document.getElementById('lang-select').value = lang;
+      if (editor) monaco.editor.setModelLanguage(editor.getModel(), lang);
+    }
+
+    function syncLangFromFile() {
+      const name = document.getElementById('file-name').value;
+      const ext = name.split('.').pop();
+      const extLang = { py:'python',c:'c',cpp:'cpp',java:'java',js:'javascript',ts:'typescript',html:'html',css:'css',json:'json',md:'markdown',sql:'sql',sh:'shell',rs:'rust',go:'go' };
+      if (extLang[ext]) setLang(extLang[ext]);
+    }
+
+    function clearEditor() {
+      if (confirm('Clear all code?')) {
+        editor.setValue('');
+        localStorage.removeItem('labdesk_monaco_code');
+      }
+    }
+
+    function copyCode() {
+      navigator.clipboard.writeText(editor.getValue())
+        .then(() => showMsg('Copied!'))
+        .catch(() => { document.execCommand && document.execCommand('copy'); });
+    }
+
+    function runCode() {
+      const lang = document.getElementById('lang-select').value;
+      if (lang !== 'javascript') {
+        showOutput('⚠️  In-browser execution is only supported for JavaScript.\nFor Python, C, C++, Java — use the "Compiler" app in Quick Launch (OnlineGDB).\n\nTip: Copy your code → open Compiler → paste and run.');
+        return;
+      }
+      const code = editor.getValue();
+      const panel = document.getElementById('output-panel');
+      const out = document.getElementById('output-content');
+      panel.style.display = 'block';
+      // Adjust editor height
+      document.getElementById('editor').style.height = 'calc(100vh - 36px - 160px)';
+      editor.layout();
+
+      const logs = [];
+      const origLog = console.log;
+      const origErr = console.error;
+      const origWarn = console.warn;
+      console.log  = (...a) => { logs.push('> ' + a.join(' ')); origLog(...a); };
+      console.error= (...a) => { logs.push('✗ ' + a.join(' ')); origErr(...a); };
+      console.warn = (...a) => { logs.push('⚠ ' + a.join(' ')); origWarn(...a); };
+      try {
+        // eslint-disable-next-line no-new-func
+        new Function(code)();
+        if (!logs.length) logs.push('(no output)');
+      } catch(e) {
+        logs.push('✗ Error: ' + e.message);
+      }
+      console.log  = origLog;
+      console.error= origErr;
+      console.warn = origWarn;
+      out.textContent = logs.join('\n');
+    }
+
+    function showOutput(msg) {
+      const panel = document.getElementById('output-panel');
+      document.getElementById('output-content').textContent = msg;
+      panel.style.display = 'block';
+      document.getElementById('editor').style.height = 'calc(100vh - 36px - 160px)';
+      if (editor) editor.layout();
+    }
+
+    function closeOutput() {
+      document.getElementById('output-panel').style.display = 'none';
+      document.getElementById('editor').style.height = 'calc(100vh - 36px)';
+      if (editor) editor.layout();
+    }
+
+    function showMsg(m) {
+      const d = document.createElement('div');
+      d.textContent = m;
+      Object.assign(d.style, {
+        position:'fixed',bottom:'16px',right:'16px',background:'#0078d4',
+        color:'#fff',padding:'6px 14px',borderRadius:'6px',fontSize:'12px',
+        fontFamily:'Segoe UI,sans-serif',zIndex:'999',opacity:'1',transition:'opacity 0.3s'
+      });
+      document.body.appendChild(d);
+      setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 300); }, 1800);
+    }
+  </script>
+</body>
+</html>

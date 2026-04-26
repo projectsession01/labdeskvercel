@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>YouTube — LabDesk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',sans-serif;background:#0f0f0f;color:#e8e8e8;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+    .bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#212121;border-bottom:1px solid #333;flex-shrink:0}
+    .yt-logo{color:#ff0000;font-size:1.3rem;font-weight:700;white-space:nowrap}
+    .search-box{flex:1;display:flex;gap:6px}
+    .search-input{flex:1;padding:7px 14px;background:#121212;border:1px solid #444;border-radius:20px;color:#e8e8e8;font-size:0.9rem;font-family:inherit;outline:none}
+    .search-input:focus{border-color:#ff0000}
+    .search-btn{padding:7px 18px;background:#333;border:none;color:#e8e8e8;border-radius:20px;cursor:pointer;font-size:0.9rem;transition:background 0.2s}
+    .search-btn:hover{background:#444}
+    .clear-btn{padding:7px 12px;background:transparent;border:none;color:#888;font-size:1rem;cursor:pointer}
+
+    .body{display:flex;flex:1;overflow:hidden}
+
+    /* Sidebar */
+    .sidebar{width:230px;background:#212121;overflow-y:auto;padding:10px 0;flex-shrink:0;border-right:1px solid #333}
+    .sidebar-title{padding:6px 14px;font-size:0.7rem;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-top:8px}
+    .video-item{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;border-radius:0;transition:background 0.15s;border:none;width:100%;background:none;text-align:left;color:#e8e8e8}
+    .video-item:hover{background:#2a2a2a}
+    .video-item.active{background:#333}
+    .vid-thumb{width:50px;height:36px;object-fit:cover;border-radius:4px;background:#333;flex-shrink:0}
+    .vid-info{overflow:hidden}
+    .vid-title{font-size:0.75rem;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    .vid-ch{font-size:0.68rem;color:#aaa;margin-top:2px}
+
+    /* Player */
+    .player-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    .player-wrap{position:relative;width:100%;padding-top:56.25%;background:#000;flex-shrink:0}
+    .player-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+    .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#111;color:#666}
+    .placeholder .icon{font-size:3rem}
+    .placeholder p{font-size:0.85rem}
+
+    .info-bar{padding:10px 14px;background:#181818;border-top:1px solid #333;flex-shrink:0}
+    .info-bar h2{font-size:0.9rem;font-weight:600;margin-bottom:3px}
+    .info-bar p{font-size:0.75rem;color:#aaa}
+
+    /* URL paste area */
+    .paste-hint{padding:8px 14px;font-size:0.75rem;color:#666;text-align:center;background:#181818}
+    .paste-hint a{color:#3ea6ff;cursor:pointer;text-decoration:underline}
+  </style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="yt-logo">▶ YouTube</div>
+  <div class="search-box">
+    <input type="text" id="urlInput" class="search-input" placeholder="Paste YouTube URL or Video ID and press Enter…" onkeydown="handleKey(event)"/>
+    <button class="search-btn" onclick="loadFromInput()">▶ Play</button>
+    <button class="clear-btn" onclick="clearPlayer()" title="Clear">✕</button>
+  </div>
+</div>
+
+<div class="body">
+  <div class="sidebar" id="sidebar"></div>
+
+  <div class="player-area">
+    <div class="player-wrap" id="playerWrap">
+      <div class="placeholder" id="placeholder">
+        <div class="icon">▶</div>
+        <p>Paste a YouTube link above or pick a video from the sidebar</p>
+      </div>
+      <iframe id="ytFrame" style="display:none" allowfullscreen
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+      </iframe>
+    </div>
+    <div class="info-bar" id="infoBar">
+      <h2 id="vidTitle">Select a video to play</h2>
+      <p id="vidChannel"></p>
+    </div>
+    <div class="paste-hint">
+      💡 YouTube blocks search inside frames, but <strong>video playback works fine</strong>. 
+      Paste any YouTube URL (youtube.com/watch?v=… or youtu.be/…) above to play it here.
+    </div>
+  </div>
+</div>
+
+<script>
+const CURATED = [
+  { cat: '🐍 Python', videos: [
+    { id:'_uQrJ0TkZlc', title:'Python Full Course', ch:'Programming with Mosh' },
+    { id:'rfscVS0vtbw', title:'Python in 4 hours', ch:'freeCodeCamp' },
+    { id:'HGOBQPFzWKo', title:'Intermediate Python', ch:'Patrick Loeber' },
+  ]},
+  { cat: '⚡ Data Structures', videos: [
+    { id:'pkYVOmU3MgA', title:'DS & Algorithms Full Course', ch:'freeCodeCamp' },
+    { id:'RBSGKlAvoiM', title:'Data Structures Easy to Advanced', ch:'WilliamFiset' },
+  ]},
+  { cat: '🌐 Web Dev', videos: [
+    { id:'G3e-cpL7ofc', title:'HTML & CSS Full Course', ch:'Dave Gray' },
+    { id:'PkZNo7MFNFg', title:'JavaScript Full Course', ch:'freeCodeCamp' },
+  ]},
+  { cat: '🔧 C / C++', videos: [
+    { id:'KJgsSFOSQv0', title:'C Programming Full Course', ch:'freeCodeCamp' },
+    { id:'vLnPwxZdW4Y', title:'C++ Full Course', ch:'freeCodeCamp' },
+  ]},
+  { cat: '☕ Java', videos: [
+    { id:'eIrMbAQSU34', title:'Java Full Course', ch:'Programming with Mosh' },
+    { id:'grEKMHGYyns', title:'Java for Beginners', ch:'Telusko' },
+  ]},
+  { cat: '🤖 Machine Learning', videos: [
+    { id:'GwIo3gDZCVQ', title:'ML Full Course', ch:'freeCodeCamp' },
+    { id:'i_LwzRVP7bg', title:'Machine Learning with Python', ch:'sentdex' },
+  ]},
+  { cat: '📐 DBMS / SQL', videos: [
+    { id:'HXV3zeQKqGY', title:'SQL Full Course', ch:'freeCodeCamp' },
+    { id:'ztHopE5Wnpc', title:'DBMS Complete Course', ch:'Neso Academy' },
+  ]},
+  { cat: '🔗 OS Concepts', videos: [
+    { id:'vBURTt97EkA', title:'Operating Systems Full Course', ch:'Neso Academy' },
+    { id:'26QPDBe-NB8', title:'OS Concepts Complete', ch:'Gate Smashers' },
+  ]},
+  { cat: '🛜 Computer Networks', videos: [
+    { id:'qiQR5rTSshw', title:'Computer Networks Full Course', ch:'freeCodeCamp' },
+  ]},
+];
+
+let activeId = null;
+
+function buildSidebar() {
+  const sb = document.getElementById('sidebar');
+  CURATED.forEach(cat => {
+    const title = document.createElement('div');
+    title.className = 'sidebar-title';
+    title.textContent = cat.cat;
+    sb.appendChild(title);
+    cat.videos.forEach(v => {
+      const btn = document.createElement('button');
+      btn.className = 'video-item';
+      btn.id = 'vid-' + v.id;
+      btn.innerHTML = `
+        <img class="vid-thumb" src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy"/>
+        <div class="vid-info">
+          <div class="vid-title">${v.title}</div>
+          <div class="vid-ch">${v.ch}</div>
+        </div>`;
+      btn.onclick = () => playVideo(v.id, v.title, v.ch);
+      sb.appendChild(btn);
+    });
+  });
+}
+
+function playVideo(id, title, ch) {
+  if (activeId) {
+    const prev = document.getElementById('vid-' + activeId);
+    if (prev) prev.classList.remove('active');
+  }
+  activeId = id;
+  const btn = document.getElementById('vid-' + id);
+  if (btn) btn.classList.add('active');
+
+  document.getElementById('placeholder').style.display = 'none';
+  const frame = document.getElementById('ytFrame');
+  frame.style.display = 'block';
+  frame.src = `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`;
+  document.getElementById('vidTitle').textContent = title;
+  document.getElementById('vidChannel').textContent = ch;
+}
+
+function extractId(input) {
+  input = input.trim();
+  // youtu.be/ID
+  const short = input.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  if (short) return short[1];
+  // ?v=ID
+  const watch = input.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (watch) return watch[1];
+  // embed/ID
+  const embed = input.match(/embed\/([a-zA-Z0-9_-]{11})/);
+  if (embed) return embed[1];
+  // bare ID (11 chars)
+  if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
+  return null;
+}
+
+function loadFromInput() {
+  const raw = document.getElementById('urlInput').value;
+  const id  = extractId(raw);
+  if (id) {
+    playVideo(id, 'Custom Video', raw);
+  } else {
+    // Fall back to YouTube search in the same page
+    alert('Could not detect a video ID.\nPaste a full YouTube URL like:\nhttps://youtube.com/watch?v=dQw4w9WgXcQ');
+  }
+}
+
+function handleKey(e) { if (e.key === 'Enter') loadFromInput(); }
+
+function clearPlayer() {
+  document.getElementById('urlInput').value = '';
+  document.getElementById('ytFrame').src = '';
+  document.getElementById('ytFrame').style.display = 'none';
+  document.getElementById('placeholder').style.display = 'flex';
+  document.getElementById('vidTitle').textContent = 'Select a video to play';
+  document.getElementById('vidChannel').textContent = '';
+  if (activeId) {
+    const btn = document.getElementById('vid-' + activeId);
+    if (btn) btn.classList.remove('active');
+    activeId = null;
+  }
+}
+
+buildSidebar();
+</script>
+</body>
+</html>

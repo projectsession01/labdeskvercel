@@ -1,0 +1,42 @@
+{
+  "name": "labdesk",
+  "version": "1.0.0",
+  "description": "Engineering Student Lab Dashboard",
+  "main": "main.js",
+  "scripts": {
+    "start": "node server.js",
+    "electron": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.labdesk.app",
+    "productName": "LabDesk",
+    "directories": { "output": "dist" },
+    "files": ["**/*", "!dist/**", "!.git/**", "!*.md"],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LabDesk"
+    },
+    "portable": { "artifactName": "LabDesk-Portable.exe" }
+  }
+}

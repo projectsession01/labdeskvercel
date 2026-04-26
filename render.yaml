@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: labdesk
+    env: node
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
